@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Download Panel</title>
+<link rel="stylesheet" href="styleDwnld.css">
+</head>
+<body>
+
+<nav id="navbar">
+    <a href="/options">Options</a>
+    <a href="/download">Downloads</a>
+    <a href="/api/main" target="_blank">Raw main</a>
+    <a href="/api/raw" target="_blank">Raw number</a>
+    <button class="logout-btn" onclick="window.location.href='/logout'">Logout</button>
+</nav>
+
+<div class="upload-container">
+<h1 id="upload-h1">Upload a new file</h1>
+    <form id="upload-form" enctype="multipart/form-data">
+        <input type="file" name="file" required>
+        <button type="submit">Upload</button>
+    </form>
+    <div id="drop-zone">
+        <p>Or drag & drop files here</p>
+    </div>
+    <p id="upload-status"></p>
+</div>
+
+<div class="width-container">
+    <div class="header">
+        <h1>Download Server Files</h1>
+        <h2>(/download/)</h2>
+    </div>
+    <div class="download-container">
+        <button onclick="window.location.href='/download/raw'">Download Raw Value</button>
+        <button onclick="window.location.href='/download/main'">Download Main Content</button>
+        <button onclick="window.location.href='/download/options'">Download Options</button>
+        <button onclick="window.location.href='/download/backup'">Download Full Backup</button>
+    </div>
+</div>
+
+<div class="width-container">
+    <div class="header">
+        <h1>Download App Files</h1>
+        <h2>(/download/file/)</h2>
+    </div>
+    <div class="download-container" id="dynamic-downloads">
+        <!-- Auto-generated buttons appear here -->
+    </div>
+</div>
+
+<script>
+// Highlight current navbar link
+function highlightNavbar() {
+    const links = document.querySelectorAll("#navbar a");
+    const path = window.location.pathname;
+    links.forEach(a => {
+        a.classList.toggle("active", a.getAttribute("href") === path);
+    });
+}
+highlightNavbar();
+
+// Load download buttons dynamically with Remove button
+async function loadDownloadButtons() {
+    try {
+        const res = await fetch("/download/list");
+        if (!res.ok) return;
+
+        const files = await res.json();
+        const container = document.getElementById("dynamic-downloads");
+        container.innerHTML = "";
+
+        if (files.length === 0) {
+            container.innerHTML = "<p>No files found.</p>";
+            return;
+        }
+
+        files.forEach(file => {
+            const wrapper = document.createElement("div");
+            wrapper.className = "download-wrapper";
+
+            const downloadBtn = document.createElement("button");
+            downloadBtn.innerText = file;
+            downloadBtn.onclick = () => {
+                window.location.href = "/download/file/" + encodeURIComponent(file);
+            };
+
+            const removeBtn = document.createElement("button");
+            removeBtn.innerText = "";
+            removeBtn.className = "remove-btn";
+            removeBtn.onclick = async () => {
+                if (!confirm(`Delete "${file}"?`)) return;
+                try {
+                    const res = await fetch("/delete/" + encodeURIComponent(file), {
+                        method: "DELETE"
+                    });
+                    if (!res.ok) {
+                        alert("Delete failed");
+                        return;
+                    }
+                    loadDownloadButtons(); // Refresh immediately
+                } catch (err) {
+                    console.error("Delete error:", err);
+                }
+            };
+
+            wrapper.appendChild(downloadBtn);
+            wrapper.appendChild(removeBtn);
+            container.appendChild(wrapper);
+        });
+    } catch (err) {
+        console.error("Failed to load downloads:", err);
+    }
+}
+
+// Upload form handling
+const uploadForm = document.getElementById("upload-form");
+const uploadStatus = document.getElementById("upload-status");
+
+async function uploadFile(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+        const res = await fetch("/upload", { method: "POST", body: formData });
+        if (!res.ok) {
+            const text = await res.text();
+            uploadStatus.innerText = "Upload failed: " + text;
+            return;
+        }
+        uploadStatus.innerText = "Upload successful!";
+        loadDownloadButtons();
+    } catch (err) {
+        console.error("Upload error:", err);
+        uploadStatus.innerText = "Upload failed. See console for details.";
+    }
+}
+
+uploadForm.addEventListener("submit", e => {
+    e.preventDefault();
+    const file = uploadForm.querySelector('input[type="file"]').files[0];
+    if (file) uploadFile(file);
+});
+
+// Drag-and-drop handling
+const dropZone = document.getElementById("drop-zone");
+dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+dropZone.addEventListener("dragleave", e => { e.preventDefault(); dropZone.classList.remove("dragover"); });
+dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
+    const files = e.dataTransfer.files;
+    if (files.length > 0) Array.from(files).forEach(file => uploadFile(file));
+});
+
+// Load on page load and refresh every 5 seconds
+loadDownloadButtons();
+setInterval(loadDownloadButtons, 5000);
+</script>
+
+</body>
+</html>

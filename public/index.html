@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Login</title>
+<link rel="stylesheet" href="./styleLogin.css">
+</head>
+<body>
+<h1>Login</h1>
+<input type="text" id="username" placeholder="Username" /><br>
+<input type="password" id="password" placeholder="Password" /><br>
+<button onclick="login()">Login</button>
+<div id="login-error"></div>
+
+<script>
+async function login() {
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
+    try {
+        const res = await fetch("/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+        });
+        if (res.ok) {
+            window.location.href = "/options"; // redirect to options page
+        } else {
+            const data = await res.json();
+            document.getElementById("login-error").innerText = data.message || "Login failed";
+        }
+    } catch (err) {
+        document.getElementById("login-error").innerText = "Server error";
+    }
+}
+</script>
+</body>
+</html>

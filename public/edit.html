@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Edit Option</title>
+</head>
+<body>
+
+<style>
+    body { background: #2c2f33; color: #fff; font-family: Arial,sans-serif; display:flex; flex-direction:column; align-items:center; padding-top:50px; }
+textarea { width:80%; max-width:800px; min-height:150px; padding:12px; border-radius:4px; border:none; background:#23272a; color:#fff; font-size:16px; resize:none; margin-bottom:12px; white-space:pre; overflow-x:auto; overflow-y:auto; }
+button { padding:12px 28px; background:#7289da; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:16px; }
+button:hover { background:#5b6eae; }
+
+/* Hamburger menu */
+#admin-panel { display: none; }
+#admin-btn { display: none; }
+.hamburger {
+    position: absolute;
+    top: 14px;
+    left: 20px;
+    width: 30px;
+    height: 24px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+.hamburger div {
+    height: 3px;
+    background-color: #fff;
+    border-radius: 2px;
+    transition: 0.3s;
+}
+.menu {
+    position: absolute;
+    top: 80px;
+    left: -300px;
+    width: 240px;
+    background-color: #23272a;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px #000;
+    transition: 0.3s;
+    z-index: 100;
+}
+.menu.open { left: 20px; }
+.menu h3 { margin-top: 0; color: #7289da; }
+.menu input { width: calc(100% - 16px); padding: 8px; border-radius: 4px; border: none; margin-bottom: 10px; }
+.menu button { width: 100%; padding: 8px; margin-bottom: 6px; background-color: #7289da; }
+.menu button:hover { background-color: #5b6eae; }
+.menu .delete-btn { background-color: #f04747; width: 40px; margin-left: 5px; }
+.menu .edit-btn { background-color: #7289da; width: 40px; margin-right: 3px;}
+.menu .delete-btn:hover { background-color: #d13f3f; }
+.menu ul { list-style: none; padding-left: 0; max-height: 300px; overflow-y: auto; margin: 0; }
+.menu li { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.menu li span { flex: 1; }
+#num-btn { margin: auto 0 10px 0; }
+
+#navbar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background-color: #23272a;
+    display: flex;
+    justify-content: center;
+    padding: 10px 0;
+    z-index: 1000;
+}
+#navbar a {
+    color: #fff;
+    text-decoration: none;
+    margin: 0 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: 0.2s;
+}
+#navbar a:hover {
+    background-color: #7289da;
+}
+#navbar a.active {
+    background-color: #99aab5;
+    color: #2c2f33;
+}
+
+.logout-btn {
+    position: absolute;
+    top: 8px;
+    right: 20px;
+    background-color: #f04747;
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 4px;
+}
+.logout-btn:hover { background-color: #d13f3f; }
+</style>
+
+<nav id="navbar">
+    <div id="admin-btn">
+    <div class="hamburger" onclick="toggleMenu()">
+        <div></div>
+        <div></div>
+        <div></div>
+    </div>
+    </div>
+    <a href="/options">Options</a>
+    <a href="/download">Downloads</a>
+    <a href="/api/main" target="_blank">Raw main</a>
+    <a href="/api/raw" target="_blank">Raw number</a>
+    <button class="logout-btn" onclick="window.location.href='/logout'">Logout</button>
+</nav>
+
+
+<!-- Admin panel -->
+<div id="admin-panel">
+    
+    <div class="menu" id="admin-menu">
+        <h3>Options List</h3>
+        <ul id="option-list"></ul>
+    </div>
+</div>
+
+<h1 id="page-title">Edit Option</h1>
+<textarea id="option-content" placeholder="Option content"></textarea>
+<div style="display:flex; gap:12px;">
+    <button onclick="updateOption()">Apply Changes</button>
+    <a id="view-btn" href="#" target="_blank">
+        <button type="button">View</button>
+    </a>
+</div>
+
+<script>
+let optionId = null;
+let optionLabel = "";
+let isAdmin = false;
+
+// Get option ID from URL
+const match = window.location.pathname.match(/\/edit\/opt(\d+)/);
+if (match) optionId = parseInt(match[1]);
+else alert("Invalid option");
+
+// Hamburger toggle
+function toggleMenu() {
+    document.getElementById("admin-menu").classList.toggle("open");
+}
+
+// Auto-resize function for textarea
+function autoResize(textarea) {
+    if (!textarea) return;
+    textarea.style.height = "auto"; // reset
+    textarea.style.height = textarea.scrollHeight + "px"; // set height
+}
+
+// Fetch user info and show admin panel if admin
+async function fetchUser() {
+    try {
+        const res = await fetch("/me");
+        if (res.ok) {
+            const user = await res.json();
+            isAdmin = user.role === "admin";
+            
+            // Show admin panel/buttons if admin
+            if (isAdmin) {
+                document.getElementById("admin-panel").style.display = "block";
+                document.getElementById("admin-btn").style.display = "block";
+            }
+
+            return isAdmin;
+        }
+    } catch(err) { console.error(err); }
+    return false;
+}
+
+// Fetch option info from /options-list
+async function fetchOption() {
+    if (!optionId) return;
+
+    // Wait until we know if user is admin
+    const adminStatus = await fetchUser();
+
+    try {
+        const res = await fetch("/options-list");
+        const options = await res.json();
+        const opt = options.find(o => o.id === optionId);
+        if (!opt) return alert("Option not found");
+
+        optionLabel = opt.label;
+        document.getElementById("page-title").innerText = `Edit content ${optionLabel}`;
+
+        const ta = document.getElementById("option-content");
+        ta.value = opt.content || "";
+
+        // Auto-resize and attach listener
+        autoResize(ta);
+        ta.addEventListener("input", () => autoResize(ta));
+
+        // Set view button href dynamically
+        document.getElementById("view-btn").href = `/api/opt${optionId}`;
+
+        // Render admin list if admin
+        if (adminStatus) renderAdminList(options);
+    } catch(err) { console.error(err); }
+}
+
+// Render admin list with edit/delete buttons
+function renderAdminList(options) {
+    const ul = document.getElementById("option-list");
+    ul.innerHTML = "";
+
+    options.forEach(opt => {
+        const li = document.createElement("li");
+
+        const span = document.createElement("span");
+        span.innerText = opt.label;
+
+        const editBtn = document.createElement("button");
+        editBtn.innerText = "✎";
+        editBtn.className = "edit-btn";
+        editBtn.title = "Edit content";
+        editBtn.onclick = () => window.location.href = `/edit/opt${opt.id}`;
+
+        const delBtn = document.createElement("button");
+        delBtn.innerText = "✕";
+        delBtn.className = "delete-btn";
+        delBtn.title = "Delete option";
+        delBtn.onclick = () => deleteOption(opt.id);
+
+        li.appendChild(span);
+        li.appendChild(editBtn);
+        li.appendChild(delBtn);
+        ul.appendChild(li);
+    });
+}
+
+// Update option content
+async function updateOption() {
+    if (!optionId) return;
+    const content = document.getElementById("option-content").value;
+    try {
+        const res = await fetch(`/api/opt${optionId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content }),
+        });
+        if (res.ok) alert("Option content updated!");
+        else {
+            const text = await res.text();
+            alert("Update failed: " + text);
+        }
+    } catch(err) { console.error(err); alert("Server error"); }
+}
+
+// Delete option
+async function deleteOption(id) {
+    if (!confirm("Delete this option?")) return;
+    try {
+        const res = await fetch("/options/" + id, { method: "DELETE" });
+        if (res.ok) fetchOption(); // refresh list after deletion
+        else alert("Failed to delete option");
+    } catch(err) { console.error(err); }
+}
+
+// Highlight navbar
+function highlightNavbar() {
+    const links = document.querySelectorAll("#navbar a");
+    const path = window.location.pathname;
+    links.forEach(a => {
+        if (a.getAttribute("href") === path) a.classList.add("active");
+        else a.classList.remove("active");
+    });
+}
+
+highlightNavbar();
+
+// Initialize page
+fetchOption();
+</script>
+
+
+</body>
+</html>

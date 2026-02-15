@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Options Page</title>
+<link rel="stylesheet" href="./styleOpt.css">
+</head>
+<body>
+
+<nav id="navbar">
+    <div id="admin-btn">
+        <div class="hamburger" onclick="toggleMenu()">
+            <div></div>
+            <div></div>
+            <div></div>
+        </div>
+    </div>
+    <a href="/options">Options</a>
+    <a href="/download" id="download-nav">Downloads</a>
+    <a href="/api/main" target="_blank">Raw main</a>
+    <a href="/api/raw" target="_blank">Raw number</a>
+    <button class="logout-btn" onclick="window.location.href='/logout'">Logout</button>
+</nav>
+
+<!-- Admin panel -->
+<div id="admin-panel" style="display:none;">
+    <div class="menu" id="admin-menu">
+        <h3>Admin Controls</h3>
+
+        <input type="text" id="new-option" placeholder="New option label" />
+        <button id="num-btn" onclick="addOption()">Add Option</button>
+
+        <input type="number" id="custom-number" placeholder="Enter number" />
+        <button id="num-btn" onclick="postCustomNumber()">Set Custom</button>
+
+        <ul id="option-list"></ul>
+    </div>
+</div>
+
+<h1>Options</h1>
+<div class="buttons" id="button-container"></div>
+<div id="api-path">/api/raw</div>
+
+<div id="main-content-container" style="display:flex; flex-direction:column; align-items:center; width:100%;">
+<h3 style="margin-top: 50px;">Main Raw Content</h3>
+<div style="display:flex; flex-direction:column; align-items:center; width:100%;">
+    <textarea id="main-content" placeholder="Enter raw content for /api/main"
+    style="
+        width: 80%;
+        max-width: 800px;
+        min-height: 150px;
+        border-radius: 4px;
+        border: none;
+        padding: 12px;
+        background-color: #23272a;
+        color: #fff;
+        font-size: 16px;
+        resize: none;
+        margin-bottom: 12px;
+        box-shadow: 0 0 6px #000;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: pre;
+    "
+    oninput="autoResize(this)"
+></textarea>
+
+    <button onclick="updateMain()"
+        style="
+            padding: 12px 28px;
+            background-color: #7289da;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.2s;
+        "
+        onmouseover="this.style.backgroundColor='#5b6eae';"
+        onmouseout="this.style.backgroundColor='#7289da';"
+    >
+        Update Main
+    </button>
+</div>
+</div>
+
+<script>
+
+// ===============================
+// UTIL
+// ===============================
+
+function autoResize(textarea) {
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = textarea.scrollHeight + "px";
+}
+
+// ===============================
+// STATE
+// ===============================
+
+let OPTIONS = [];
+let isAdmin = false;
+
+// ===============================
+// USER
+// ===============================
+
+async function fetchUser() {
+    try {
+        const res = await fetch("/me");
+        if (!res.ok) return;
+
+        const user = await res.json();
+        isAdmin = user.role === "admin";
+
+        if (isAdmin) {
+            document.getElementById("admin-panel").style.display = "block";
+            document.getElementById("admin-btn").style.display = "block";
+            document.getElementById("download-nav").style.display = "block";
+        } else {
+            document.getElementById("main-content-container").style.display = "none";
+        }
+    } catch(err) {
+        console.error(err);
+    }
+}
+
+// ===============================
+// OPTIONS
+// ===============================
+
+async function fetchOptions() {
+    try {
+        const res = await fetch("/options-list");
+        OPTIONS = await res.json();
+        renderButtons();
+        renderAdminList();
+    } catch(err) {
+        console.error(err);
+    }
+}
+
+function renderButtons() {
+    const container = document.getElementById("button-container");
+    container.innerHTML = "";
+
+    OPTIONS.forEach(opt => {
+        const btn = document.createElement("button");
+        btn.id = "btn" + opt.id;
+        btn.innerText = opt.label;
+        btn.onclick = () => setRaw(opt.id);
+        if (!isAdmin) btn.disabled = true;
+        container.appendChild(btn);
+    });
+}
+
+function renderAdminList() {
+    if (!isAdmin) return;
+
+    const ul = document.getElementById("option-list");
+    ul.innerHTML = "";
+
+    OPTIONS.forEach(opt => {
+        const li = document.createElement("li");
+
+        const span = document.createElement("span");
+        span.innerText = opt.label;
+
+        const editBtn = document.createElement("button");
+        editBtn.innerText = "✎";
+        editBtn.className = "edit-btn";
+        editBtn.title = "Edit content";
+        editBtn.onclick = () => {
+            window.location.href = `/edit/opt${opt.id}`;
+        };
+
+        const delBtn = document.createElement("button");
+        delBtn.innerText = "✕";
+        delBtn.className = "delete-btn";
+        delBtn.title = "Delete option";
+        delBtn.onclick = () => deleteOption(opt.id);
+
+        li.appendChild(span);
+        li.appendChild(editBtn);
+        li.appendChild(delBtn);
+        ul.appendChild(li);
+    });
+}
+
+async function addOption() {
+    const label = document.getElementById("new-option").value.trim();
+    if (!label) return alert("Enter a label");
+
+    try {
+        const res = await fetch("/options", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ label }),
+            credentials: "same-origin"
+        });
+
+        if (res.ok) {
+            document.getElementById("new-option").value = "";
+            await fetchOptions();
+        } else {
+            alert("Failed to add option");
+        }
+    } catch(err) {
+        console.error(err);
+    }
+}
+
+async function deleteOption(id) {
+    if (!confirm("Delete this option?")) return;
+
+    try {
+        const res = await fetch("/options/" + id, {
+            method: "DELETE",
+            credentials: "same-origin"
+        });
+
+        if (res.ok) fetchOptions();
+        else alert("Failed to delete option");
+    } catch(err) {
+        console.error(err);
+    }
+}
+
+// ===============================
+// RAW VALUE
+// ===============================
+
+async function fetchRaw() {
+    try {
+        const res = await fetch("/api/raw");
+        const text = await res.text();
+        const rawNumber = parseInt(text) || 0;
+        updateDisplay(rawNumber);
+    } catch(err) {
+        console.error(err);
+    }
+}
+
+function updateDisplay(number) {
+    document.getElementById("api-path").innerText = `/api/raw = ${number}`;
+    OPTIONS.forEach(opt => {
+        const btn = document.getElementById("btn" + opt.id);
+        btn?.classList.toggle("active", opt.id === number);
+    });
+}
+
+async function setRaw(number) {
+    if (!isAdmin) return alert("Only admins can set value");
+
+    number = parseInt(number);
+    if (isNaN(number)) return alert("Invalid number");
+
+    try {
+        const res = await fetch("/api/raw", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ value: number }),
+            credentials: "same-origin"
+        });
+
+        if (res.ok) updateDisplay(number);
+        else {
+            const text = await res.text();
+            alert("Failed: " + text);
+        }
+    } catch(err) {
+        console.error(err);
+    }
+}
+
+async function postCustomNumber() {
+    const val = parseInt(document.getElementById("custom-number").value);
+    if (isNaN(val)) return alert("Enter a valid number");
+    await setRaw(val);
+}
+
+// ===============================
+// MAIN CONTENT
+// ===============================
+
+async function fetchMain() {
+    try {
+        const res = await fetch("/api/main");
+        if (!res.ok) return;
+
+        const text = await res.text();
+        const ta = document.getElementById("main-content");
+        ta.value = text;
+        autoResize(ta);
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function updateMain() {
+    const content = document.getElementById("main-content").value;
+
+    try {
+        const res = await fetch("/api/main", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content }),
+            credentials: "same-origin"
+        });
+
+        if (res.ok) alert("Main updated!");
+        else {
+            const text = await res.text();
+            alert("Update failed: " + text);
+        }
+    } catch(err) {
+        console.error(err);
+    }
+}
+
+// ===============================
+// UI
+// ===============================
+
+function toggleMenu() {
+    document.getElementById("admin-menu").classList.toggle("open");
+}
+
+function highlightNavbar() {
+    const links = document.querySelectorAll("#navbar a");
+    const path = window.location.pathname;
+
+    links.forEach(a => {
+        a.classList.toggle("active", a.getAttribute("href") === path);
+    });
+}
+
+// ===============================
+// INIT
+// ===============================
+
+async function init() {
+    await fetchUser();
+    await fetchOptions();
+    if (isAdmin) fetchMain();
+    fetchRaw();
+    highlightNavbar();
+}
+
+init();
+
+</script>
+</body>
+</html>

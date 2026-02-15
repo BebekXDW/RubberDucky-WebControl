@@ -1,0 +1,23 @@
+# Node modules
+node_modules/
+
+# Environment variables
+.env
+
+# OS files
+VS Code.code-workspace
+
+# bat files
+.opt1.bat
+.start.bat
+
+# utils
+.bcrypt.js
+
+# Private Files
+files/*
+
+# values
+mainRaw.json
+rawValue.json
+options.json
