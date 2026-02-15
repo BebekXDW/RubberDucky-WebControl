@@ -16,8 +16,9 @@ VS Code.code-workspace
 
 # Private Files
 files/*
+!files/example.txt
 
 # values
-mainRaw.json
-rawValue.json
-options.json
+data/mainRaw.json
+data/rawValue.json
+data/options.json

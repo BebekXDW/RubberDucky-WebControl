@@ -16,10 +16,12 @@ const pool = require("./database");
 const app = express();
 const port = 3001;
 
-const RAW_FILE = "rawValue.json";
-const MAIN_FILE = "mainRaw.json";
-const OPTIONS_FILE = "options.json";
+// Ensure all paths are absolute and inside your app folder
+const RAW_FILE = path.join(__dirname, "data/rawValue.json");
+const MAIN_FILE = path.join(__dirname, "data/mainRaw.json");
+const OPTIONS_FILE = path.join(__dirname, "data/options.json");
 const FILES_DIR = path.join(__dirname, "files");
+
 
 // Middleware
 app.use(bodyParser.json());
@@ -270,7 +272,7 @@ app.post("/api/main", requireLogin, requireAdmin, (req, res) => {
 // OPTIONS MANAGEMENT
 // ======================================================
 
-app.get("/options-list", requireLogin, requireModeratorOrAdmin, (req, res) => {
+app.get("/options-list", requireLogin, (req, res) => {
     res.json(OPTIONS);
 });
 
